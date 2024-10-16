@@ -1,0 +1,6 @@
+{
+  "python.analysis.extraPaths": [
+    "./SuperGluePretrainedNetwork-master/Parorama",
+    "./SuperGluePretrainedNetwork-master/Paronama"
+  ]
+}
