@@ -231,11 +231,11 @@ class VideoStreamer:
         w, h = image.shape[1], image.shape[0]
         w_new, h_new = process_resize(w, h, self.resize)
         
-        image = cv2.resize(image, (w_new, h_new), interpolation=self.interp)
+        image = cv2.resize(image, (w_new, h_new),  interpolation=self.interp)
         
         # Convert BGR to RGB
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        cv2.imwrite("F:/SuperGluePretrainedNetwork-master/SuperGluePretrainedNetwork-master/dump_demo_sequence/realImage", image)
+        
         
         return image
 
@@ -279,6 +279,7 @@ class VideoStreamer:
         else:
             image_file = str(self.listing[self.j])
             image = self.load_image_wg(image_file)
+            cv2.imwrite("F:/SuperGluePretrainedNetwork-master/SuperGluePretrainedNetwork-master/dump_demo_sequence/realImage.png", image)
         
         self.j = self.j + 1
         return (image, True)

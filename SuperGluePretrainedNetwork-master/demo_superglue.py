@@ -80,7 +80,7 @@ if __name__ == '__main__':
         '--max_length', type=int, default=1000000,
         help='Maximum length if input is a movie or directory')
     parser.add_argument(
-        '--resize', type=int, nargs='+', default=[320,240],
+        '--resize', type=int, nargs='+', default=[1280, 960],
         help='Resize the input image before running inference. If two numbers, '
              'resize to the exact dimensions, if one number, resize the max '
              'dimension, if -1, do not resize')
@@ -93,7 +93,7 @@ if __name__ == '__main__':
         help='Maximum number of keypoints detected by Superpoint'
              ' (\'-1\' keeps all keypoints)')
     parser.add_argument(
-        '--keypoint_threshold', type=float, default=0.05, #0.005
+        '--keypoint_threshold', type=float, default=0.005, #0.005
         help='SuperPoint keypoint detector confidence threshold')
     parser.add_argument(
         '--nms_radius', type=int, default=4,
