@@ -93,7 +93,7 @@ if __name__ == '__main__':
         help='Maximum number of keypoints detected by Superpoint'
              ' (\'-1\' keeps all keypoints)')
     parser.add_argument(
-        '--keypoint_threshold', type=float, default=0.05, #0.005
+        '--keypoint_threshold', type=float, default=0.07, #0.005
         help='SuperPoint keypoint detector confidence threshold')
     parser.add_argument(
         '--nms_radius', type=int, default=4,
@@ -150,11 +150,15 @@ if __name__ == '__main__':
 
     vs = VideoStreamer(opt.input, opt.resize, opt.skip,
                        opt.image_glob, opt.max_length)
+    
+    folder_length= 0
+    print(folder_length)
     frame, ret = vs.next_frame()
     frame_bgr, ret = vs.next_frame_wg()
+
+
+
     
-
-
     
 
     assert ret, 'Error when reading the first frame (try different --input?)'
@@ -191,8 +195,60 @@ if __name__ == '__main__':
     timer = AverageTimer()
 
     while True:
+        
+        max_matches = 0
+        image_id = 0
+
+        ##############
+        for i in range (folder_length):
+
+            print("iteration")
+            print(i)
+            frame, ret = vs.next_frame()
+
+            if ret == False:
+                break
+            
+
+            timer.update('data')
+            stem0, stem1 = 'image0', vs.i - 1
+
+            print("vs_i", str(vs.i))
+
+            frame_tensor = frame2tensor(frame, device)
+            pred = matching({**last_data, 'image1': frame_tensor})
+            kpts0 = last_data['keypoints0'][0].cpu().numpy()
+            kpts1 = pred['keypoints1'][0].cpu().numpy()
+            matches = pred['matches0'][0].cpu().numpy()
+            
+            #print("matches" , matches)
+            confidence = pred['matching_scores0'][0].cpu().numpy()
+            timer.update('forward')
+
+            valid = matches > -1
+            mkpts0 = kpts0[valid]
+            mkpts1 = kpts1[matches[valid]]
+
+            num_matches = len(mkpts0)
+            print(mkpts0)
 
 
+            print("num matches")
+            print(num_matches)
+
+        
+
+            if num_matches > max_matches:
+                max_matches = num_matches
+
+                image_id = stem1
+
+            print(image_id)
+
+
+            
+
+        ################
         frame, ret = vs.next_frame()
         frame_bgr, ret = vs.next_frame_wg()
         if not ret:
@@ -241,53 +297,63 @@ if __name__ == '__main__':
                 mkpts0, mkpts1, cv2.RANSAC, k_thresh
             )
         print(H)
+
+        #add_image(mkpts1,mkpts0,k_thresh, frame_bgr, last_frame_bgr)
     
 
         #forward(mkpts1,mkpts0, k_thresh, frame_bgr,last_frame_bgr)
 
-        add_image(mkpts1,mkpts0,k_thresh, frame_bgr, last_frame_bgr)
-        #last_frame= cv2.cvtColor(last_frame_bgr,cv2.COLOR_BGR2RGB )
+        last_frame_bgr = forward(mkpts1,mkpts0, k_thresh, frame_bgr,last_frame_bgr)
+        #last_frame_bgr = cv2.resize(last_frame_bgr, ( 1280,960) )
+        last_frame= cv2.cvtColor(last_frame_bgr,cv2.COLOR_RGB2GRAY )
+
+        frame_tensor = frame2tensor(last_frame, device)
+     
+
+        last_data = matching.superpoint({'image': frame_tensor})
+        last_data = {k+'0': last_data[k] for k in keys}
+        last_data['image0'] = frame_tensor
 
         
 
-        if not opt.no_display:
-            cv2.imshow('SuperGlue matches', out)
-            key = chr(cv2.waitKey(1) & 0xFF)
-            if key == 'q':
-                vs.cleanup()
-                print('Exiting (via q) demo_superglue.py')
-                break
-            elif key == 'n':  # set the current frame as anchor
-                last_data = {k+'0': pred[k+'1'] for k in keys}
-                last_data['image0'] = frame_tensor
-                last_frame = frame
-                last_image_id = (vs.i - 1)
-            elif key in ['e', 'r']:
-                # Increase/decrease keypoint threshold by 10% each keypress.
-                d = 0.1 * (-1 if key == 'e' else 1)
-                matching.superpoint.config['keypoint_threshold'] = min(max(
-                    0.0001, matching.superpoint.config['keypoint_threshold']*(1+d)), 1)
-                print('\nChanged the keypoint threshold to {:.4f}'.format(
-                    matching.superpoint.config['keypoint_threshold']))
-            elif key in ['d', 'f']:
-                # Increase/decrease match threshold by 0.05 each keypress.
-                d = 0.05 * (-1 if key == 'd' else 1)
-                matching.superglue.config['match_threshold'] = min(max(
-                    0.05, matching.superglue.config['match_threshold']+d), .95)
-                print('\nChanged the match threshold to {:.2f}'.format(
-                    matching.superglue.config['match_threshold']))
-            elif key == 'k':
-                opt.show_keypoints = not opt.show_keypoints
+        # if not opt.no_display:
+        #     cv2.imshow('SuperGlue matches', out)
+        #     key = chr(cv2.waitKey(1) & 0xFF)
+        #     if key == 'q':
+        #         vs.cleanup()
+        #         print('Exiting (via q) demo_superglue.py')
+        #         break
+        #     elif key == 'n':  # set the current frame as anchor
+        #         last_data = {k+'0': pred[k+'1'] for k in keys}
+        #         last_data['image0'] = frame_tensor
+        #         last_frame = frame
+        #         last_image_id = (vs.i - 1)
+        #     elif key in ['e', 'r']:
+        #         # Increase/decrease keypoint threshold by 10% each keypress.
+        #         d = 0.1 * (-1 if key == 'e' else 1)
+        #         matching.superpoint.config['keypoint_threshold'] = min(max(
+        #             0.0001, matching.superpoint.config['keypoint_threshold']*(1+d)), 1)
+        #         print('\nChanged the keypoint threshold to {:.4f}'.format(
+        #             matching.superpoint.config['keypoint_threshold']))
+        #     elif key in ['d', 'f']:
+        #         # Increase/decrease match threshold by 0.05 each keypress.
+        #         d = 0.05 * (-1 if key == 'd' else 1)
+        #         matching.superglue.config['match_threshold'] = min(max(
+        #             0.05, matching.superglue.config['match_threshold']+d), .95)
+        #         print('\nChanged the match threshold to {:.2f}'.format(
+        #             matching.superglue.config['match_threshold']))
+        #     elif key == 'k':
+        #         opt.show_keypoints = not opt.show_keypoints
 
-        timer.update('viz')
-        timer.print()
+        # timer.update('viz')
+        # timer.print()
 
-        if opt.output_dir is not None:
-            #stem = 'matches_{:06}_{:06}'.format(last_image_id, vs.i-1)
-            stem = 'matches_{:06}_{:06}'.format(stem0, stem1)
-            out_file = str(Path(opt.output_dir, stem + '.png'))
-            print('\nWriting image to {}'.format(out_file))
-            cv2.imwrite(out_file, out)
+        # if opt.output_dir is not None:
+        #     #stem = 'matches_{:06}_{:06}'.format(last_image_id, vs.i-1)
+        #     stem = 'matches_{:06}_{:06}'.format(stem0, stem1)
+        #     out_file = str(Path(opt.output_dir, stem + '.png'))
+        #     print('\nWriting image to {}'.format(out_file))
+        #     cv2.imwrite(out_file, out)
 
     cv2.destroyAllWindows()
     vs.cleanup()

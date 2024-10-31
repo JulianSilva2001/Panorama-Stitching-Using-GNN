@@ -56,14 +56,15 @@ import matplotlib
 matplotlib.use('Agg')
 
 i=0
+j=1
 
 height_img = 960
 width_img = 1280
 
-width_panorama = width_img*3
-height_panorama = height_img*3 
-center_y = height_panorama // 2
-center_x = width_panorama // 2
+width_panorama = width_img*2
+height_panorama = height_img*2 
+center_y = height_panorama//2
+center_x = width_panorama//2
 panorama = np.zeros((height_panorama, width_panorama, 3), dtype=np.uint8)
 new_image = np.zeros((height_panorama, width_panorama, 3), dtype=np.uint8)
 
@@ -232,6 +233,14 @@ class VideoStreamer:
             image = self.load_image(image_file)
         self.i = self.i + 1
         return (image, True)
+    
+    def restart(self):
+        self.i = 0
+
+    def get_folder_length(self):
+        folder_length = self.max_length
+        return folder_length
+        
     
     #########################################################################################################################
 
@@ -673,7 +682,7 @@ def error_colormap(x):
 
 
 #############################################
-i=4.5
+i=1
 #####################################################
 
 def forward(mkpts0, mkpts1,k_thresh,query_photo, train_photo):
@@ -699,14 +708,15 @@ def forward(mkpts0, mkpts1,k_thresh,query_photo, train_photo):
 
     global i
     i_s = str(i)
-    output_dir = "F:/VisionProject/Panorama-Stitching-Using-GNN/SuperGluePretrainedNetwork-master/dump_demo_sequence/"+i_s+"result_image.png"
-
+    #output_dir = "F:/VisionProject/Panorama-Stitching-Using-GNN/SuperGluePretrainedNetwork-master/dump_demo_sequence/"+i_s+"result_image.png"
+    output_dir = "F:/VisionProject/Panorama-Stitching-Using-GNN/SuperGluePretrainedNetwork-master/dump_demo_sequence/result_image.png"
     i=i+1
     
     cv2.imwrite(output_dir, result_rgb)
     
     return result_rgb
 ##########################################
+
 
 
 
@@ -725,6 +735,8 @@ def add_image(mkpts0, mkpts1,k_thresh,query_photo, train_photo):
 
     # Combine translation and homography
     centered_homography = translation_matrix @ H
+
+    
 
     # Warp the query_image onto the panorama with the centered homography
     warped_query_image = cv2.warpPerspective(
@@ -749,6 +761,7 @@ def add_image(mkpts0, mkpts1,k_thresh,query_photo, train_photo):
 
     
     cv2.imwrite(output_dir, new_image_rgb)
+    return new_image_rgb
     
 
 
@@ -757,9 +770,19 @@ def add_image(mkpts0, mkpts1,k_thresh,query_photo, train_photo):
 def set_train_image(train_image):
     global panorama 
     global new_image
+    global i
+    i_s = str(i)
 
     panorama[offset_y1:offset_y1 + train_image.shape[0], offset_x1:offset_x1 + train_image.shape[1], :] = train_image
     new_image= panorama
+
+    output_dir = "F:/VisionProject/Panorama-Stitching-Using-GNN/SuperGluePretrainedNetwork-master/dump_demo_sequence/result_image.png"
+
+
+    train_image_bgr= cv2.cvtColor(new_image, cv2.COLOR_BGR2RGB)
+    cv2.imwrite(output_dir, train_image_bgr)
+
+    i+=1
 
 
     
@@ -769,9 +792,17 @@ def set_train_image(train_image):
 
 
 def blending_smoothing(query_image, train_image, homography_matrix):
+    global j
 
-    panorama[offset_y1:offset_y1 + train_image.shape[0], offset_x1:offset_x1 + train_image.shape[1], :] = train_image
-    centered_homography = translation_matrix @ homography_matrix
+    
+
+    #panorama[offset_y1:offset_y1 + train_image.shape[0], offset_x1:offset_x1 + train_image.shape[1], :] = train_image
+    panaroma= train_image
+    if j == 1:
+        centered_homography = translation_matrix @ homography_matrix
+    else: 
+        centered_homography = homography_matrix
+
 
     # Warp the query_image onto the panorama with the centered homography
     warped_query_image = cv2.warpPerspective(
@@ -794,6 +825,7 @@ def blending_smoothing(query_image, train_image, homography_matrix):
     #result = cv2.addWeighted(panorama, 0.5, warped_query_image, 0.5, 0)
 
     print(panorama.shape)
+    j+=1
 
     return panorama
 
