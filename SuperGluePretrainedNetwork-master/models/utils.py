@@ -57,6 +57,24 @@ matplotlib.use('Agg')
 
 i=0
 
+height_img = 960
+width_img = 1280
+
+width_panorama = width_img*3
+height_panorama = height_img*3 
+center_y = height_panorama // 2
+center_x = width_panorama // 2
+panorama = np.zeros((height_panorama, width_panorama, 3), dtype=np.uint8)
+new_image = np.zeros((height_panorama, width_panorama, 3), dtype=np.uint8)
+
+offset_y1 = center_y - height_img // 2
+offset_x1 = center_x - width_img // 2
+
+translation_matrix = np.array([
+        [1, 0, offset_x1],
+        [0, 1, offset_y1],
+        [0, 0, 1]
+    ])
 
 class AverageTimer:
     """ Class to help manage printing simple timing of code execution. """
@@ -659,43 +677,6 @@ i=4.5
 #####################################################
 
 def forward(mkpts0, mkpts1,k_thresh,query_photo, train_photo):
-    """Runs a forward pass using the ImageStitching() class in utils.py.
-    Takes in a query image and train image and runs entire pipeline to return
-    a panoramic image.
-
-    Args:
-        query_photo (numpy array): query image
-        train_photo (nnumpy array): train image
-
-    Returns:
-        result image (numpy array): RGB result image
-
-
-    """
-####
-    # image_extensions = ['*.png', '*.jpg', '*.jpeg', '*.gif', '*.bmp', '*.tiff']
-
-    # # Input: Directory name
-    # directory_name = "F:\SuperGluePretrainedNetwork-master\SuperGluePretrainedNetwork-master\Par_images"
-
-    # # List to hold all the image file paths
-    # image_files = []
-
-    # for ext in image_extensions:
-    #     image_files.extend(glob.glob(os.path.join(directory_name, ext)))
-
-    # print(image_files)
-
-    # new_width = 320
-    # new_height = 240
-
-    # query_photo = cv2.imread(image_files[0])
-    # query_photo = cv2.cvtColor(query_photo, cv2.COLOR_BGR2RGB)
-    # query_photo = cv2.resize(query_photo, (new_width, new_height))
-
-    # train_photo = cv2.imread(image_files[1])
-    # train_photo = cv2.cvtColor(train_photo, cv2.COLOR_BGR2RGB)
-    # train_photo = cv2.resize(train_photo, (new_width, new_height))
 
     query_photo= query_photo
     train_photo= train_photo
@@ -718,14 +699,103 @@ def forward(mkpts0, mkpts1,k_thresh,query_photo, train_photo):
 
     global i
     i_s = str(i)
-    output_dir = "f:/SuperGluePretrainedNetwork-master/SuperGluePretrainedNetwork-master/Par_images/"+i_s+"result_image.png"
+    output_dir = "F:/VisionProject/Panorama-Stitching-Using-GNN/SuperGluePretrainedNetwork-master/dump_demo_sequence/"+i_s+"result_image.png"
 
     i=i+1
     
     cv2.imwrite(output_dir, result_rgb)
     
     return result_rgb
+##########################################
 
+
+
+
+def add_image(mkpts0, mkpts1,k_thresh,query_photo, train_photo):
+    query_photo= query_photo
+    train_photo= train_photo
+
+    H, status = cv2.findHomography(
+                mkpts0, mkpts1, cv2.RANSAC, k_thresh
+            )
+    
+    if H is None:
+        return "Error cannot stitch images"
+    
+
+    # Combine translation and homography
+    centered_homography = translation_matrix @ H
+
+    # Warp the query_image onto the panorama with the centered homography
+    warped_query_image = cv2.warpPerspective(
+        query_photo, centered_homography, (width_panorama, height_panorama)
+    )
+    global new_image
+    #new_image = cv2.addWeighted(new_image, 0.5, warped_query_image, 0.5, 0)
+
+    black_pixels = np.all(new_image == [0, 0, 0], axis=-1)
+
+    new_image[black_pixels] = warped_query_image[black_pixels]
+
+    new_image_float32 = np.float32(new_image)
+    new_image_rgb = cv2.cvtColor(new_image_float32, cv2.COLOR_BGR2RGB)
+    #mapped_feature_image_rgb = cv2.cvtColor(mapped_float_32, cv2.COLOR_BGR2RGB)
+    
+
+    global i
+    i_s = str(i)
+    output_dir = "F:/VisionProject/Panorama-Stitching-Using-GNN/SuperGluePretrainedNetwork-master/dump_demo_sequence/"+i_s+"added_image.png"
+
+
+    
+    cv2.imwrite(output_dir, new_image_rgb)
+    
+
+
+
+
+def set_train_image(train_image):
+    global panorama 
+    global new_image
+
+    panorama[offset_y1:offset_y1 + train_image.shape[0], offset_x1:offset_x1 + train_image.shape[1], :] = train_image
+    new_image= panorama
+
+
+    
+
+
+
+
+
+def blending_smoothing(query_image, train_image, homography_matrix):
+
+    panorama[offset_y1:offset_y1 + train_image.shape[0], offset_x1:offset_x1 + train_image.shape[1], :] = train_image
+    centered_homography = translation_matrix @ homography_matrix
+
+    # Warp the query_image onto the panorama with the centered homography
+    warped_query_image = cv2.warpPerspective(
+        query_image, centered_homography, (width_panorama, height_panorama)
+    )
+
+    black_pixels = np.all(panorama == [0, 0, 0], axis=-1)
+
+    # Use the mask to copy over the non-black pixels from `warped_query_image`
+    # Only replace pixels in `panorama` where it’s black
+    panorama[black_pixels] = warped_query_image[black_pixels]
+
+    result = panorama
+
+
+
+    
+
+    # Combine the images
+    #result = cv2.addWeighted(panorama, 0.5, warped_query_image, 0.5, 0)
+
+    print(panorama.shape)
+
+    return panorama
 
 def create_mask(query_image, train_image, version):
         """Creates the mask using query and train images for blending the images,
@@ -746,57 +816,22 @@ def create_mask(query_image, train_image, version):
         width_panorama = width_query_photo + width_train_photo
         offset = int(100 / 2)
         barrier = query_image.shape[1] - int(100 / 2)
-        mask = np.zeros((height_panorama, width_panorama))
-        if version == "left_image":
-            mask[:, barrier - offset : barrier + offset] = np.tile(
-                np.linspace(1, 0, 2 * offset).T, (height_panorama, 1)
-            )
-            mask[:, : barrier - offset] = 1
-        else:
-            mask[:, barrier - offset : barrier + offset] = np.tile(
-                np.linspace(0, 1, 2 * offset).T, (height_panorama, 1)
-            )
-            mask[:, barrier + offset :] = 1
+        mask = np.zeros((height_panorama*2, width_panorama*2))
+
+        mask[:, :width_train_photo] = 1
+
+        #blend 
+
+        # if version == "left_image":
+        #     mask[:, barrier - offset : barrier + offset] = np.tile(
+        #         np.linspace(1, 0, 2 * offset).T, (height_panorama, 1)
+        #     )
+        #     mask[:, : barrier - offset] = 1
+        # else:
+        #     mask[:, barrier - offset : barrier + offset] = np.tile(
+        #         np.linspace(0, 1, 2 * offset).T, (height_panorama, 1)
+        #     )
+        #     mask[:, barrier + offset :] = 1
         return cv2.merge([mask, mask, mask])
 
-def blending_smoothing(query_image, train_image, homography_matrix):
-        """blends both query and train image via the homography matrix,
-        and ensures proper blending and smoothing using masks created in create_masks()
-        to give a seamless panorama.
-
-        Args:
-            query_image (numpy array)
-            train_image (numpy array)
-            homography_matrix (numpy array): Homography to map images to a single plane
-
-        Returns:
-            panoramic image (numpy array)
-        """
-        height_img1 = query_image.shape[0]
-        width_img1 = query_image.shape[1]
-        width_img2 = train_image.shape[1]
-        height_panorama = height_img1
-        width_panorama = width_img1 + width_img2
-
-        panorama1 = np.zeros((height_panorama, width_panorama, 3))
-        mask1 = create_mask(query_image, train_image, version="left_image")
-        panorama1[0 : train_image.shape[0], 0 : train_image.shape[1], :] = train_image
-        panorama1 *= mask1
-        mask2 = create_mask(query_image, train_image, version="right_image")
-        panorama2 = (
-            cv2.warpPerspective(
-                query_image, homography_matrix, (width_panorama, height_panorama)
-            )
-            * mask2
-        )
-        result =  panorama1 + panorama2
-
-        # remove extra blackspace
-        rows, cols = np.where(result[:, :, 0] != 0)
-        min_row, max_row = min(rows), max(rows) 
-        min_col, max_col = min(cols), max(cols) 
-
-        final_result = result[min_row:max_row, min_col:max_col, :]
-
-        return final_result
 

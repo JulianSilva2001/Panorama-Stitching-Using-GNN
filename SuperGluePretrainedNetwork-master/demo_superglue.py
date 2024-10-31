@@ -53,7 +53,7 @@ import torch
 
 from models.matching import Matching
 from models.utils import (AverageTimer, VideoStreamer,
-                          make_matching_plot_fast, frame2tensor, forward, blending_smoothing)
+                          make_matching_plot_fast, frame2tensor, forward, blending_smoothing, add_image,set_train_image)
 
 torch.set_grad_enabled(False)
 
@@ -63,11 +63,11 @@ if __name__ == '__main__':
         description='SuperGlue demo',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
-        '--input', type=str, default='F:\SuperGluePretrainedNetwork-master\SuperGluePretrainedNetwork-master\Par_images',
+        '--input', type=str, default='F:\VisionProject\Panorama-Stitching-Using-GNN\SuperGluePretrainedNetwork-master\Par_images',
         help='ID of a USB webcam, URL of an IP camera, '
              'or path to an image directory or movie file')
     parser.add_argument(
-        '--output_dir', type=str, default='F:\SuperGluePretrainedNetwork-master\SuperGluePretrainedNetwork-master\dump_demo_sequence',
+        '--output_dir', type=str, default='F:\VisionProject\Panorama-Stitching-Using-GNN\SuperGluePretrainedNetwork-master\dump_demo_sequence',
         help='Directory where to write output frames (If None, no output)')
 
     parser.add_argument(
@@ -93,7 +93,7 @@ if __name__ == '__main__':
         help='Maximum number of keypoints detected by Superpoint'
              ' (\'-1\' keeps all keypoints)')
     parser.add_argument(
-        '--keypoint_threshold', type=float, default=0.005, #0.005
+        '--keypoint_threshold', type=float, default=0.05, #0.005
         help='SuperPoint keypoint detector confidence threshold')
     parser.add_argument(
         '--nms_radius', type=int, default=4,
@@ -152,7 +152,7 @@ if __name__ == '__main__':
                        opt.image_glob, opt.max_length)
     frame, ret = vs.next_frame()
     frame_bgr, ret = vs.next_frame_wg()
-    last_frame_bgr, ret = vs.next_frame_wg()
+    
 
 
     
@@ -164,7 +164,10 @@ if __name__ == '__main__':
     last_data = {k+'0': last_data[k] for k in keys}
     last_data['image0'] = frame_tensor
     last_frame = frame
+    last_frame_bgr= frame_bgr 
     last_image_id = 0
+
+    set_train_image(last_frame_bgr)
 
     if opt.output_dir is not None:
         print('==> Will write outputs to {}'.format(opt.output_dir))
@@ -188,7 +191,10 @@ if __name__ == '__main__':
     timer = AverageTimer()
 
     while True:
+
+
         frame, ret = vs.next_frame()
+        frame_bgr, ret = vs.next_frame_wg()
         if not ret:
             print('Finished demo_superglue.py')
             break
@@ -235,15 +241,14 @@ if __name__ == '__main__':
                 mkpts0, mkpts1, cv2.RANSAC, k_thresh
             )
         print(H)
+    
+
+        #forward(mkpts1,mkpts0, k_thresh, frame_bgr,last_frame_bgr)
+
+        add_image(mkpts1,mkpts0,k_thresh, frame_bgr, last_frame_bgr)
+        #last_frame= cv2.cvtColor(last_frame_bgr,cv2.COLOR_BGR2RGB )
 
         
-
-        forward(mkpts0, mkpts1, k_thresh, frame_bgr, last_frame_bgr)
-        
-
-       
-
-
 
         if not opt.no_display:
             cv2.imshow('SuperGlue matches', out)
